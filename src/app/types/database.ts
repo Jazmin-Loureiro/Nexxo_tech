@@ -7,6 +7,7 @@ export interface Product {
   image_url: string | null;
   stock: number;
   is_active: boolean;
+  category?: string;
   created_at: string;
 }
 
