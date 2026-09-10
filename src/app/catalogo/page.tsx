@@ -6,7 +6,7 @@ import CatalogView from "@/components/CatalogView";
 export const metadata: Metadata = {
   title: "Catálogo Completo | Nexxo Tech",
   description:
-    "Explorá todos los accesorios para celular disponibles en Nexxo Tech: auriculares, cables, cargadores rápidos, fundas y más con entrega en Neuquén.",
+    "Explorá todos los accesorios para celular disponibles en Nexxo Tech: auriculares, cables, cargadores rápidos, fundas y más con entrega en Cipolletti y alrededores.",
 };
 
 export const revalidate = 0;
@@ -41,7 +41,7 @@ export default async function CatalogoPage() {
           </h1>
           <p className="text-sm sm:text-base text-slate-400 mt-2 max-w-2xl">
             Encontrá el accesorio ideal para tu smartphone. Calidad garantizada,
-            stock inmediato y envíos express en Neuquén y alrededores.
+            stock inmediato y envíos express en Cipolletti y alrededores.
           </p>
         </div>
 

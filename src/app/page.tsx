@@ -190,9 +190,8 @@ export default async function HomePage() {
               Envíos Rápidos Locales
             </h3>
             <p className="text-sm text-slate-400 leading-relaxed">
-              Entregas coordinadas en el día o en 24 hs en Neuquén Capital,
-              Plottier, Cipolletti y Centenario. ¡Sin esperas eternas de envíos
-              nacionales!
+              Entregas coordinadas en el día o en 24 hs en Cipolletti y
+              alrededores. ¡Sin esperas eternas de envíos nacionales!
             </p>
           </div>
 

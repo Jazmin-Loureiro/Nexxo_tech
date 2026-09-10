@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Nexxo Tech | Accesorios de Celular",
   description:
-    "Accesorios de celular: Calidad • Diseño • Confianza. Entregas en Neuquén y alrededores.",
+    "Accesorios de celular: Calidad • Diseño • Confianza. Entregas en Cipolletti y alrededores.",
 };
 
 export default function RootLayout({

@@ -1,8 +1,7 @@
 "use client";
 
 export default function WhatsAppButton() {
-  const phoneNumber =
-    process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "+5492995103149";
+  const phoneNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
   const defaultMessage =
     "¡Hola Nexxo Tech! Vengo desde la web y me gustaría hacer una consulta...";
   const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(

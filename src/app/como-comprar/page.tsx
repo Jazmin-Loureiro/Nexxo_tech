@@ -13,7 +13,7 @@ import {
 export const metadata: Metadata = {
   title: "¿Cómo Comprar? | Nexxo Tech",
   description:
-    "Guía paso a paso para comprar accesorios de celular en Nexxo Tech: elegís tu producto, pagás seguro y coordinamos envío express en Neuquén por WhatsApp.",
+    "Guía paso a paso para comprar accesorios de celular en Nexxo Tech: elegís tu producto, pagás seguro y coordinamos envío express en Cipolletti y alrededores por WhatsApp.",
 };
 
 const STEPS = [
@@ -36,16 +36,16 @@ const STEPS = [
   {
     step: "03",
     icon: Truck,
-    title: "Coordinamos entrega en Neuquén",
+    title: "Coordinamos entrega en Cipolletti y alrededores",
     description:
       "Te escribimos al instante por WhatsApp para definir la entrega express en tu domicilio o pactar un punto de retiro acordado en la zona.",
-    detail: "Entregas en Neuquén Capital, Plottier, Cipolletti y Centenario.",
+    detail: "Entregas en Cipolletti y alrededores.",
   },
 ];
 
 const FAQS = [
   {
-    question: "¿Cuánto tarda la entrega en Neuquén?",
+    question: "¿Cuánto tarda la entrega en Cipolletti y alrededores?",
     answer:
       "Si el producto está en stock, coordinamos entregas en el día o en un plazo máximo de 24 horas hábiles según tu zona y disponibilidad horaria.",
   },
@@ -151,16 +151,6 @@ export default function ComoComprarPage() {
             <span>Ver Catálogo de Productos</span>
             <ArrowRight className="w-4 h-4" />
           </Link>
-
-          <a
-            href="https://wa.me/5492990000000?text=Hola%20Nexxo%20Tech,%20tengo%20una%20duda%20antes%20de%20comprar..."
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl font-semibold text-sm bg-[#131923] hover:bg-[#1a2332] text-slate-200 border border-slate-800 hover:border-slate-700 transition-colors"
-          >
-            <MessageCircle className="w-4 h-4 text-[#25D366]" />
-            <span>Consultar por WhatsApp</span>
-          </a>
         </div>
       </div>
     </div>

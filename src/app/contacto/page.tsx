@@ -16,8 +16,7 @@ export const metadata: Metadata = {
 };
 
 export default function ContactoPage() {
-  const phoneNumber =
-    process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "+5492995103149";
+  const phoneNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
   const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(
     "¡Hola Nexxo Tech! Me gustaría consultar por zonas de entrega y stock disponible.",
   )}`;
@@ -37,8 +36,8 @@ export default function ContactoPage() {
             Contacto & Envíos
           </h1>
           <p className="text-sm sm:text-base text-slate-400 mt-3 leading-relaxed">
-            Estamos en Neuquén para brindarte la mejor experiencia en accesorios
-            de celular. Escribinos directamente ante cualquier duda.
+            Estamos en Cipolletti para brindarte la mejor experiencia en
+            accesorios de celular. Escribinos directamente ante cualquier duda.
           </p>
         </div>
 
@@ -64,7 +63,7 @@ export default function ContactoPage() {
                   <CheckCircle2 className="w-4 h-4 text-[#00A8FF] mt-0.5 shrink-0" />
                   <div>
                     <span className="font-semibold text-white">
-                      Neuquén Capital:
+                      Cipolletti:
                     </span>{" "}
                     <span className="text-slate-400">
                       Entregas en el día o en 24 hs en todos los barrios.
@@ -74,20 +73,20 @@ export default function ContactoPage() {
                 <li className="flex items-start gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-[#00A8FF] mt-0.5 shrink-0" />
                   <div>
-                    <span className="font-semibold text-white">Plottier:</span>{" "}
+                    <span className="font-semibold text-white">
+                      Neuquén Capital:
+                    </span>{" "}
                     <span className="text-slate-400">
-                      Envíos programados a domicilio o punto céntrico.
+                      Coordinación directa de entrega express.
                     </span>
                   </div>
                 </li>
                 <li className="flex items-start gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-[#00A8FF] mt-0.5 shrink-0" />
                   <div>
-                    <span className="font-semibold text-white">
-                      Cipolletti:
-                    </span>{" "}
+                    <span className="font-semibold text-white">Plottier:</span>{" "}
                     <span className="text-slate-400">
-                      Coordinación directa de entrega express.
+                      Envíos programados a domicilio o punto céntrico.
                     </span>
                   </div>
                 </li>
