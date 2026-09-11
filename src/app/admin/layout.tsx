@@ -62,7 +62,7 @@ export default function AdminLayout({
       <header className="sticky top-0 z-40 w-full bg-[#0B0E14]/90 backdrop-blur-md border-b border-slate-800/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
           {/* Brand & Título */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 sm:gap-4">
             <Link
               href="/admin"
               className="flex items-center gap-2 group transition-transform active:scale-95"
@@ -77,6 +77,33 @@ export default function AdminLayout({
             <span className="hidden sm:inline-block px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-[#00A8FF]/10 text-[#00A8FF] border border-[#00A8FF]/30">
               ADMIN
             </span>
+
+            {/* Navegación interna del Panel */}
+            <nav className="flex items-center gap-1 sm:ml-2">
+              <Link
+                href="/admin"
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  pathname === "/admin" ||
+                  pathname === "/admin/nuevo" ||
+                  (pathname.startsWith("/admin/") &&
+                    pathname !== "/admin/pedidos")
+                    ? "bg-[#00A8FF]/15 text-[#00A8FF] border border-[#00A8FF]/30"
+                    : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                }`}
+              >
+                Productos
+              </Link>
+              <Link
+                href="/admin/pedidos"
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  pathname.startsWith("/admin/pedidos")
+                    ? "bg-[#00A8FF]/15 text-[#00A8FF] border border-[#00A8FF]/30"
+                    : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                }`}
+              >
+                Pedidos
+              </Link>
+            </nav>
           </div>
 
           {/* Acciones del Administrador */}

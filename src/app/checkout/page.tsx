@@ -179,7 +179,7 @@ export default function CheckoutPage() {
     }
   };
 
-  const handleTransferSubmit = () => {
+  const handleTransferSubmit = async () => {
     if (!validateForm()) return;
 
     const phoneNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
@@ -242,6 +242,42 @@ ${shippingCostText}${notesSection}
 Quedo atento para coordinar los detalles de entrega y los datos de pago. ¡Muchas gracias!`;
 
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(messageText)}`;
+
+    // Persistir la orden en Supabase (tabla 'orders') antes de redirigir a WhatsApp
+    try {
+      const supabase = createClient();
+      const orderPayload = {
+        customer_name: formData.fullName.trim(),
+        customer_phone: formData.phone.trim(),
+        customer_email: formData.email.trim() || null,
+        shipping_address:
+          formData.deliveryMethod === "pickup"
+            ? "Punto de retiro en Cipolletti"
+            : `${formData.address}${formData.city ? `, ${formData.city}` : ""}`,
+        delivery_method: formData.deliveryMethod,
+        total_amount: totalPrice,
+        status: "pending",
+        payment_method: "transfer",
+        notes: formData.notes.trim() || null,
+        items: items.map((i) => ({
+          id: i.product.id,
+          title: i.product.title,
+          price: i.product.price,
+          quantity: i.quantity,
+          subtotal: i.product.price * i.quantity,
+        })),
+      };
+
+      const { error: dbError } = await supabase
+        .from("orders")
+        .insert([orderPayload]);
+
+      if (dbError) {
+        console.error("Error al registrar pedido en Supabase:", dbError);
+      }
+    } catch (err) {
+      console.error("Excepción al persistir pedido de transferencia:", err);
+    }
 
     setWhatsappLink(whatsappUrl);
     clearCart();
@@ -881,6 +917,18 @@ Quedo atento para coordinar los detalles de entrega y los datos de pago. ¡Mucha
                   </div>
                 </button>
               </div>
+
+              {formData.paymentMethod === "mercadopago" &&
+                !isMercadoPagoDisabled && (
+                  <div className="mt-3 p-3 rounded-xl bg-[#0B0E14] border border-slate-800/80 text-[11px] text-slate-400 flex items-start gap-2 animate-in fade-in duration-200">
+                    <span className="text-[#00A8FF] shrink-0 font-bold">ℹ</span>
+                    <span>
+                      Nota: Al completar el pago, volverás automáticamente a la
+                      web para enviar el comprobante y coordinar la entrega o
+                      retiro por WhatsApp.
+                    </span>
+                  </div>
+                )}
             </div>
 
             {/* Sección 4: Notas opcionales */}

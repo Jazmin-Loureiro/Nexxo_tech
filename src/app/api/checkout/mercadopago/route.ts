@@ -161,15 +161,15 @@ export async function POST(request: NextRequest) {
           phone: payerPhone,
         },
         back_urls: {
-          success: `${origin}/catalogo?status=success`,
+          success: `${origin}/checkout/success?status=success`,
           failure: `${origin}/checkout?status=failure`,
           pending: `${origin}/checkout?status=pending`,
         },
         ...(isHttps ? { auto_return: "approved" } : {}),
         metadata: {
-          full_name: payer?.fullName || payer?.name,
-          phone: payer?.phone,
-          email: payer?.email,
+          full_name: payer?.fullName || payer?.name || "",
+          phone: payer?.phone || "",
+          email: payer?.email || "",
           delivery_method: deliveryMethod,
           address: shippingDetails?.address || "",
           city: shippingDetails?.city || "",
@@ -177,6 +177,14 @@ export async function POST(request: NextRequest) {
           subtotal,
           surcharge: surchargeAmount,
           total: subtotal + surchargeAmount,
+          items: JSON.stringify(
+            preferenceItems.map((item) => ({
+              id: item.id,
+              title: item.title,
+              quantity: item.quantity,
+              unit_price: item.unit_price,
+            })),
+          ),
         },
       },
     });
