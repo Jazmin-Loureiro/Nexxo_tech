@@ -32,6 +32,10 @@ export default function Navbar() {
 
   const displayCount = mounted ? totalItems : 0;
 
+  if (pathname.startsWith("/admin")) {
+    return null;
+  }
+
   return (
     <>
       <div className="sticky top-0 z-40 w-full transition-colors">
