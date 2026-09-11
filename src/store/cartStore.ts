@@ -7,11 +7,21 @@ export interface CartItem {
   quantity: number;
 }
 
+export interface SyncedProductInfo {
+  id: string;
+  title: string;
+  price: number;
+  stock: number;
+  is_active: boolean;
+}
+
 export interface CartStore {
   items: CartItem[];
   addItem: (product: Product) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
+  syncProducts: (freshProducts: SyncedProductInfo[]) => void;
+  hasOutOfStockItems: () => boolean;
   clearCart: () => void;
   getTotalPrice: () => number;
   getTotalItems: () => number;
@@ -42,7 +52,7 @@ export const useCartStore = create<CartStore>()(
             return state;
           }
 
-          if (product.stock > 0) {
+          if (product.stock > 0 && product.is_active !== false) {
             return {
               items: [...state.items, { product, quantity: 1 }],
             };
@@ -69,6 +79,55 @@ export const useCartStore = create<CartStore>()(
             return item;
           }),
         }));
+      },
+
+      syncProducts: (freshProducts: SyncedProductInfo[]) => {
+        set((state) => {
+          const freshMap = new Map(freshProducts.map((p) => [p.id, p]));
+          const updatedItems = state.items.map((item) => {
+            const fresh = freshMap.get(item.product.id);
+            if (!fresh) {
+              // Si el producto fue eliminado del catálogo
+              return {
+                ...item,
+                product: {
+                  ...item.product,
+                  stock: 0,
+                  is_active: false,
+                },
+              };
+            }
+
+            // Actualizar en caliente precio, stock, título y estado activo
+            const updatedProduct: Product = {
+              ...item.product,
+              title: fresh.title,
+              price: fresh.price,
+              stock: fresh.stock,
+              is_active: fresh.is_active,
+            };
+
+            // Ajustar cantidad si el stock se redujo por debajo de lo seleccionado
+            const adjustedQuantity =
+              fresh.stock > 0
+                ? Math.min(item.quantity, fresh.stock)
+                : item.quantity;
+
+            return {
+              ...item,
+              quantity: adjustedQuantity,
+              product: updatedProduct,
+            };
+          });
+
+          return { items: updatedItems };
+        });
+      },
+
+      hasOutOfStockItems: () => {
+        return get().items.some(
+          (item) => item.product.stock <= 0 || item.product.is_active === false,
+        );
       },
 
       clearCart: () => {

@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Product } from "@/types/database";
+import { revalidateProducts } from "@/app/actions/products";
 import {
   Plus,
   Search,
@@ -29,6 +31,7 @@ function formatCurrency(amount: number): string {
 }
 
 export default function AdminDashboardPage() {
+  const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -123,6 +126,10 @@ export default function AdminDashboardPage() {
       // Remover del estado local
       setProducts((prev) => prev.filter((p) => p.id !== productToDelete.id));
       setProductToDelete(null);
+
+      // Revalidar caché de Server Components y refrescar router
+      await revalidateProducts();
+      router.refresh();
     } catch (err: any) {
       console.error("Error al eliminar producto:", err);
       setDeleteError(err?.message || "No se pudo eliminar el producto.");

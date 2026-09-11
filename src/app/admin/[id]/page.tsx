@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Product } from "@/types/database";
 import ProductForm from "@/components/admin/ProductForm";
 import { Edit3, Loader2, AlertCircle, ArrowLeft } from "lucide-react";
+import { revalidateProducts } from "@/app/actions/products";
 
 export default function EditProductPage() {
   const params = useParams();
@@ -91,8 +92,10 @@ export default function EditProductPage() {
       throw new Error(error.message);
     }
 
-    router.push("/admin");
+    // Revalidar caché de Server Components y refrescar router
+    await revalidateProducts();
     router.refresh();
+    router.push("/admin");
   };
 
   if (isLoading) {

@@ -12,11 +12,13 @@ import {
   ArrowRight,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Smartphone,
   ShieldCheck,
   MessageCircle,
 } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
+import { createClient } from "@/lib/supabase/client";
 
 type DeliveryMethod = "pickup" | "shipping_cipo" | "shipping_other";
 
@@ -41,6 +43,10 @@ export default function CheckoutPage() {
   const items = useCartStore((state) => state.items);
   const getTotalPrice = useCartStore((state) => state.getTotalPrice);
   const clearCart = useCartStore((state) => state.clearCart);
+  const syncProducts = useCartStore((state) => state.syncProducts);
+  const hasOutOfStockItems = useCartStore((state) =>
+    state.hasOutOfStockItems(),
+  );
 
   const totalPrice = getTotalPrice();
 
@@ -65,6 +71,26 @@ export default function CheckoutPage() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Sincronizar reactivamente el inventario y precios con Supabase al cargar el checkout
+  useEffect(() => {
+    if (items.length === 0) return;
+    const itemIds = items.map((i) => i.product.id);
+    const supabase = createClient();
+
+    const fetchLatestProducts = async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, title, price, stock, is_active")
+        .in("id", itemIds);
+
+      if (!error && data) {
+        syncProducts(data as any);
+      }
+    };
+
+    fetchLatestProducts();
+  }, [items.length, syncProducts]);
 
   // Si cambia el método de entrega a fuera de Cipolletti y estaba Mercado Pago, cambiar a transfer
   useEffect(() => {
@@ -908,9 +934,17 @@ Quedo atento para coordinar los detalles de entrega y los datos de pago. ¡Mucha
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <h4 className="text-xs sm:text-sm font-bold text-slate-100 truncate">
-                        {item.product.title}
-                      </h4>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-xs sm:text-sm font-bold text-slate-100 truncate">
+                          {item.product.title}
+                        </h4>
+                        {(!item.product.is_active ||
+                          item.product.stock <= 0) && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30 shrink-0">
+                            Sin stock
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center justify-between mt-1 text-xs text-slate-400">
                         <span>Cant: {item.quantity}</span>
                         <span className="font-semibold text-white">
@@ -975,29 +1009,57 @@ Quedo atento para coordinar los detalles de entrega y los datos de pago. ¡Mucha
                 </div>
               )}
 
+              {/* Alerta de productos sin stock */}
+              {hasOutOfStockItems && (
+                <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-400 flex items-start gap-2.5 animate-in fade-in duration-200">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold block">
+                      Productos sin stock en el pedido
+                    </span>
+                    <span>
+                      Algunos accesorios de tu pedido ya no cuentan con stock
+                      disponible. Por favor, modificalos en tu carrito para
+                      poder continuar.
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* Botón de Acción Principal */}
               <div>
                 {formData.paymentMethod === "transfer" ? (
                   <button
                     type="button"
                     onClick={handleTransferSubmit}
-                    className="w-full py-4 px-4 rounded-xl font-bold text-sm bg-[#25D366] hover:bg-[#20ba59] text-white shadow-[0_0_25px_rgba(37,211,102,0.3)] hover:shadow-[0_0_30px_rgba(37,211,102,0.5)] flex items-center justify-center gap-2.5 transition-all active:scale-[0.98]"
+                    disabled={hasOutOfStockItems}
+                    className="w-full py-4 px-4 rounded-xl font-bold text-sm bg-[#25D366] hover:bg-[#20ba59] text-white shadow-[0_0_25px_rgba(37,211,102,0.3)] hover:shadow-[0_0_30px_rgba(37,211,102,0.5)] flex items-center justify-center gap-2.5 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                   >
                     <MessageCircle className="w-5 h-5 fill-current" />
-                    <span>Confirmar y Enviar Pedido por WhatsApp</span>
+                    <span>
+                      {hasOutOfStockItems
+                        ? "No disponible (Productos sin stock)"
+                        : "Confirmar y Enviar Pedido por WhatsApp"}
+                    </span>
                   </button>
                 ) : (
                   <button
                     type="button"
                     onClick={handleMercadoPagoSubmit}
-                    disabled={isProcessing || isMercadoPagoDisabled}
-                    className="w-full py-4 px-4 rounded-xl font-bold text-sm bg-[#00A8FF] hover:bg-[#38bdf8] text-[#0B0E14] shadow-[0_0_25px_rgba(0,168,255,0.3)] hover:shadow-[0_0_30px_rgba(0,168,255,0.5)] flex items-center justify-center gap-2.5 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={
+                      isProcessing ||
+                      isMercadoPagoDisabled ||
+                      hasOutOfStockItems
+                    }
+                    className="w-full py-4 px-4 rounded-xl font-bold text-sm bg-[#00A8FF] hover:bg-[#38bdf8] text-[#0B0E14] shadow-[0_0_25px_rgba(0,168,255,0.3)] hover:shadow-[0_0_30px_rgba(0,168,255,0.5)] flex items-center justify-center gap-2.5 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                   >
                     <Wallet className="w-5 h-5" />
                     <span>
-                      {isProcessing
-                        ? "Conectando con Mercado Pago..."
-                        : `Pagar ${formatCurrency(finalTotal)} con Mercado Pago`}
+                      {hasOutOfStockItems
+                        ? "No disponible (Productos sin stock)"
+                        : isProcessing
+                          ? "Conectando con Mercado Pago..."
+                          : `Pagar ${formatCurrency(finalTotal)} con Mercado Pago`}
                     </span>
                   </button>
                 )}

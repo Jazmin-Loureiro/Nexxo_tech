@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MercadoPagoConfig, Preference } from "mercadopago";
+import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,7 +25,73 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Configurar MercadoPagoConfig
+    // 2. Extraer IDs de productos solicitados
+    const productIds = items
+      .map((item: any) => item.id || item.product?.id)
+      .filter((id: any): id is string => Boolean(id));
+
+    if (productIds.length === 0) {
+      return NextResponse.json(
+        { error: "No se encontraron identificadores de producto válidos." },
+        { status: 400 },
+      );
+    }
+
+    // 3. Consultar precios y stock oficiales directamente en Supabase (servidor)
+    const supabase = await createSupabaseServerClient();
+    const { data: dbProducts, error: dbError } = await supabase
+      .from("products")
+      .select("id, title, price, stock, is_active")
+      .in("id", productIds);
+
+    if (dbError || !dbProducts) {
+      console.error("Error al consultar productos en Supabase:", dbError);
+      return NextResponse.json(
+        {
+          error:
+            "No se pudieron verificar los precios oficiales con la base de datos.",
+        },
+        { status: 500 },
+      );
+    }
+
+    const dbProductMap = new Map(dbProducts.map((p) => [p.id, p]));
+
+    // 4. Validar existencia, estado activo y disponibilidad de stock
+    for (const item of items) {
+      const id = String(item.id || item.product?.id || "");
+      const dbProduct = dbProductMap.get(id);
+      const requestedQty = Number(item.quantity) || 1;
+
+      if (!dbProduct) {
+        return NextResponse.json(
+          {
+            error: `El producto seleccionado (ID: ${id}) no existe en el catálogo.`,
+          },
+          { status: 400 },
+        );
+      }
+
+      if (dbProduct.is_active === false) {
+        return NextResponse.json(
+          {
+            error: `El producto "${dbProduct.title}" se encuentra pausado y no admite compras.`,
+          },
+          { status: 400 },
+        );
+      }
+
+      if (dbProduct.stock < requestedQty) {
+        return NextResponse.json(
+          {
+            error: `Stock insuficiente para "${dbProduct.title}". Disponibles: ${dbProduct.stock}, solicitadas: ${requestedQty}.`,
+          },
+          { status: 400 },
+        );
+      }
+    }
+
+    // 5. Configurar MercadoPagoConfig
     const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
     if (!accessToken) {
       console.error(
@@ -42,25 +109,22 @@ export async function POST(request: NextRequest) {
     const client = new MercadoPagoConfig({ accessToken });
     const preference = new Preference(client);
 
-    // 3. Normalizar ítems originales
+    // 6. Construir ítems de preferencia utilizando estrictamente los precios oficiales de Supabase
     const preferenceItems = items.map((item: any) => {
-      const title = item.title || item.product?.title || "Accesorio Nexxo Tech";
-      const quantity = Number(item.quantity) || 1;
-      const unit_price = Number(
-        item.unit_price ?? item.price ?? item.product?.price ?? 0,
-      );
       const id = String(item.id || item.product?.id || "");
+      const dbProduct = dbProductMap.get(id)!;
+      const quantity = Number(item.quantity) || 1;
 
       return {
-        id,
-        title,
+        id: dbProduct.id,
+        title: dbProduct.title,
         quantity,
-        unit_price,
+        unit_price: Number(dbProduct.price),
         currency_id: "ARS",
       };
     });
 
-    // 4. Calcular recargo del 10% sobre el subtotal de productos
+    // 7. Calcular recargo del 10% sobre el subtotal oficial de productos
     const subtotal = preferenceItems.reduce(
       (acc: number, item: any) => acc + item.unit_price * item.quantity,
       0,
@@ -75,7 +139,7 @@ export async function POST(request: NextRequest) {
       currency_id: "ARS",
     };
 
-    // 5. Determinar origen para URLs de retorno de forma segura
+    // 8. Determinar origen para URLs de retorno de forma segura
     const origin =
       request.headers.get("origin") ||
       request.headers.get("referer")?.replace(/\/checkout.*$/, "") ||
@@ -87,7 +151,7 @@ export async function POST(request: NextRequest) {
       ? { number: String(payer.phone).trim() }
       : undefined;
 
-    // 6. Crear la Preference en Mercado Pago SDK v2
+    // 9. Crear la Preference en Mercado Pago SDK v2
     const response = await preference.create({
       body: {
         items: [...preferenceItems, surchargeItem],
@@ -117,6 +181,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // 10. Devolver init_point de producción
     return NextResponse.json({ init_point: response.init_point });
   } catch (error: any) {
     console.error("Error al crear preferencia en Mercado Pago:", error);

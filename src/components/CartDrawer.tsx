@@ -11,8 +11,10 @@ import {
   ShoppingBag,
   ArrowRight,
   Smartphone,
+  AlertTriangle,
 } from "lucide-react";
 import { useCartStore, CartItem } from "@/store/cartStore";
+import { createClient } from "@/lib/supabase/client";
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -30,7 +32,8 @@ function CartDrawerItemComponent({
 }) {
   const [imgError, setImgError] = useState(false);
   const { product, quantity } = item;
-  const isMaxStock = quantity >= product.stock;
+  const isOutOfStock = product.stock <= 0 || product.is_active === false;
+  const isMaxStock = isOutOfStock || quantity >= product.stock;
 
   const formattedPrice = new Intl.NumberFormat("es-AR", {
     style: "currency",
@@ -128,11 +131,15 @@ function CartDrawerItemComponent({
           </span>
         </div>
 
-        {isMaxStock && (
+        {isOutOfStock ? (
+          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30 inline-flex items-center gap-1 mt-1.5 w-fit">
+            Sin stock
+          </span>
+        ) : isMaxStock ? (
           <span className="text-[10px] text-amber-400 mt-1">
             Stock máximo alcanzado ({product.stock})
           </span>
-        )}
+        ) : null}
       </div>
     </div>
   );
@@ -142,12 +149,45 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
   const items = useCartStore((state) => state.items);
   const removeItem = useCartStore((state) => state.removeItem);
   const updateQuantity = useCartStore((state) => state.updateQuantity);
+  const syncProducts = useCartStore((state) => state.syncProducts);
+  const hasOutOfStockItems = useCartStore((state) =>
+    state.hasOutOfStockItems(),
+  );
   const clearCart = useCartStore((state) => state.clearCart);
   const getTotalItems = useCartStore((state) => state.getTotalItems);
   const getTotalPrice = useCartStore((state) => state.getTotalPrice);
 
   const totalItems = getTotalItems();
   const totalPrice = getTotalPrice();
+
+  // Sincronización en vivo con la base de datos al abrir o montar el drawer
+  useEffect(() => {
+    if (!isOpen || items.length === 0) return;
+
+    let isMounted = true;
+    const fetchFreshProducts = async () => {
+      try {
+        const itemIds = items.map((i) => i.product.id);
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("products")
+          .select("id, title, price, stock, is_active")
+          .in("id", itemIds);
+
+        if (!error && data && isMounted) {
+          syncProducts(data as any);
+        }
+      } catch (err) {
+        console.error("Error al sincronizar carrito:", err);
+      }
+    };
+
+    fetchFreshProducts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, items.length, syncProducts]);
 
   const formattedTotalPrice = new Intl.NumberFormat("es-AR", {
     style: "currency",
@@ -285,15 +325,36 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                 </div>
               </div>
 
+              {/* Alerta de productos sin stock */}
+              {hasOutOfStockItems && (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-400 flex items-start gap-2 animate-in fade-in">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>
+                    Hay productos sin stock o no disponibles en tu carrito. Por
+                    favor, eliminalos para continuar con la compra.
+                  </span>
+                </div>
+              )}
+
               {/* Botón principal Iniciar compra */}
-              <Link
-                href="/checkout"
-                onClick={onClose}
-                className="w-full py-3.5 px-4 rounded-xl font-bold text-sm bg-[#00A8FF] hover:bg-[#38bdf8] text-[#0B0E14] shadow-[0_0_20px_rgba(0,168,255,0.35)] hover:shadow-[0_0_25px_rgba(0,168,255,0.5)] flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-              >
-                <span>Iniciar compra</span>
-                <ArrowRight className="w-4 h-4" />
-              </Link>
+              {hasOutOfStockItems ? (
+                <button
+                  type="button"
+                  disabled
+                  className="w-full py-3.5 px-4 rounded-xl font-bold text-sm bg-slate-900 border border-slate-800 text-slate-500 cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <span>No disponible para compra (Sin stock)</span>
+                </button>
+              ) : (
+                <Link
+                  href="/checkout"
+                  onClick={onClose}
+                  className="w-full py-3.5 px-4 rounded-xl font-bold text-sm bg-[#00A8FF] hover:bg-[#38bdf8] text-[#0B0E14] shadow-[0_0_20px_rgba(0,168,255,0.35)] hover:shadow-[0_0_25px_rgba(0,168,255,0.5)] flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                >
+                  <span>Iniciar compra</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              )}
 
               {/* Botón Vaciar carrito */}
               <div className="text-center">

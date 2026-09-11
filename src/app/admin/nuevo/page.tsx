@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import ProductForm from "@/components/admin/ProductForm";
 import { PackagePlus } from "lucide-react";
+import { revalidateProducts } from "@/app/actions/products";
 
 export default function NewProductPage() {
   const router = useRouter();
@@ -63,8 +64,10 @@ export default function NewProductPage() {
       }
     }
 
-    router.push("/admin");
+    // Revalidar caché de Server Components y refrescar router
+    await revalidateProducts();
     router.refresh();
+    router.push("/admin");
   };
 
   return (
