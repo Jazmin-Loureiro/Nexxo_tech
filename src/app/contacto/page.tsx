@@ -195,7 +195,7 @@ export default function ContactoPage() {
 
             {/* Botón Instagram */}
             <a
-              href="https://instagram.com/nexxotech"
+              href="https://instagram.com/nexxo_tech"
               target="_blank"
               rel="noopener noreferrer"
               className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-8 py-4 rounded-xl font-bold text-sm bg-gradient-to-r from-[#833ab4] via-[#fd1d1d] to-[#fcb045] hover:opacity-95 text-white shadow-[0_0_25px_rgba(253,29,29,0.25)] transition-all active:scale-[0.98]"
