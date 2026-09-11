@@ -35,7 +35,8 @@ export default function CheckoutPage() {
   const [mounted, setMounted] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderCompleted, setOrderCompleted] = useState(false);
-  const [mpModalOpen, setMpModalOpen] = useState(false);
+  const [whatsappLink, setWhatsappLink] = useState("");
+  const [mpError, setMpError] = useState<string | null>(null);
 
   const items = useCartStore((state) => state.items);
   const getTotalPrice = useCartStore((state) => state.getTotalPrice);
@@ -58,9 +59,22 @@ export default function CheckoutPage() {
     {},
   );
 
+  // Regla: Mercado Pago no disponible si la entrega es fuera de Cipolletti
+  const isMercadoPagoDisabled = formData.deliveryMethod === "shipping_other";
+
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Si cambia el método de entrega a fuera de Cipolletti y estaba Mercado Pago, cambiar a transfer
+  useEffect(() => {
+    if (
+      formData.deliveryMethod === "shipping_other" &&
+      formData.paymentMethod === "mercadopago"
+    ) {
+      setFormData((prev) => ({ ...prev, paymentMethod: "transfer" }));
+    }
+  }, [formData.deliveryMethod, formData.paymentMethod]);
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat("es-AR", {
@@ -70,8 +84,23 @@ export default function CheckoutPage() {
       maximumFractionDigits: 0,
     }).format(val);
 
+  // Recargo del 10% si se paga con Mercado Pago
+  const surchargeAmount =
+    formData.paymentMethod === "mercadopago" ? Math.round(totalPrice * 0.1) : 0;
+  const finalTotal = totalPrice + surchargeAmount;
+
   const handleChange = (field: keyof FormData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => {
+      const updated = { ...prev, [field]: value };
+      if (
+        field === "deliveryMethod" &&
+        value === "shipping_other" &&
+        prev.paymentMethod === "mercadopago"
+      ) {
+        updated.paymentMethod = "transfer";
+      }
+      return updated;
+    });
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
@@ -127,98 +156,132 @@ export default function CheckoutPage() {
   const handleTransferSubmit = () => {
     if (!validateForm()) return;
 
-    const phoneNumber =
-      process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5492990000000";
+    const phoneNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
+
+    if (!phoneNumber) {
+      console.error(
+        "Falta configurar la variable de entorno NEXT_PUBLIC_WHATSAPP_NUMBER.",
+      );
+      alert(
+        "Error de configuración: Falta configurar el número de WhatsApp (NEXT_PUBLIC_WHATSAPP_NUMBER).",
+      );
+      return;
+    }
 
     let deliveryDetail = "";
     if (formData.deliveryMethod === "pickup") {
       deliveryDetail =
-        `Punto de retiro en Cipolletti (Gratis)%0A` +
-        `   📍 Modalidad: Coordinar punto de encuentro céntrico en Cipolletti`;
+        "• Punto de retiro en Cipolletti (Gratis)\n  (Coordinar punto de encuentro céntrico en Cipolletti)";
     } else if (formData.deliveryMethod === "shipping_cipo") {
-      deliveryDetail =
-        `Envío a domicilio en Cipolletti (Gratis)%0A` +
-        `   📍 Dirección: ${encodeURIComponent(formData.address)}`;
+      deliveryDetail = `• Envío a domicilio en Cipolletti (Gratis)\n  Dirección: ${formData.address}`;
     } else {
-      deliveryDetail =
-        `Entrega fuera de Cipolletti (Sujeto a coordinación)%0A` +
-        `   🏙️ Localidad/Barrio: ${encodeURIComponent(formData.city)}%0A` +
-        `   📍 Dirección aprox.: ${encodeURIComponent(formData.address)}%0A` +
-        `   ⚠️ _Nota: Coordinar costo de envío y factibilidad_`;
+      deliveryDetail = `• Entrega fuera de Cipolletti (Sujeto a coordinación)\n  Localidad/Barrio: ${formData.city}\n  Dirección aprox.: ${formData.address}\n  (Nota: Coordinar costo de envío y factibilidad)`;
     }
 
     const productLines = items
       .map(
         (i) =>
-          `• ${encodeURIComponent(i.product.title)} x${i.quantity} (${encodeURIComponent(
-            formatCurrency(i.product.price * i.quantity),
-          )})`,
+          `• ${i.product.title} x${i.quantity} (${formatCurrency(i.product.price * i.quantity)})`,
       )
-      .join("%0A");
-
-    const notesText = formData.notes.trim()
-      ? `%0A%0A*📝 Aclaraciones / Notas:*%0A${encodeURIComponent(formData.notes.trim())}`
-      : "";
+      .join("\n");
 
     const shippingCostText =
       formData.deliveryMethod === "shipping_other"
-        ? `*🚚 Envío:* A coordinar por WhatsApp`
-        : `*🚚 Envío:* Gratis`;
+        ? "*Envío:* A coordinar por WhatsApp"
+        : "*Envío:* Gratis";
 
-    const message =
-      `¡Hola Nexxo Tech! 👋 Quiero confirmar mi pedido desde la tienda web:%0A%0A` +
-      `*👤 Datos del Comprador:*%0A` +
-      `• Nombre: ${encodeURIComponent(formData.fullName)}%0A` +
-      `• Teléfono: ${encodeURIComponent(formData.phone)}%0A` +
-      `• Email: ${encodeURIComponent(formData.email)}%0A%0A` +
-      `* Método de Entrega:*%0A` +
-      `• ${deliveryDetail}%0A%0A` +
-      `*💳 Forma de Pago:*%0A` +
-      `• Transferencia Bancaria / Efectivo%0A%0A` +
-      `*🛒 Detalle de Productos:*%0A` +
-      `${productLines}%0A%0A` +
-      `*💰 Total de Productos:* ${encodeURIComponent(formatCurrency(totalPrice))}%0A` +
-      shippingCostText +
-      notesText +
-      `%0A%0AQuedo atento para coordinar los detalles de entrega y los datos de pago. ¡Muchas gracias!`;
+    const notesSection = formData.notes.trim()
+      ? `\n\n*Aclaraciones / Notas:*\n${formData.notes.trim()}`
+      : "";
 
-    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
+    const messageText = `¡Hola Nexxo Tech! Quiero confirmar mi pedido desde la tienda web:
 
-    // Limpiar carrito y marcar como completado
+*Datos del Comprador:*
+• Nombre: ${formData.fullName}
+• Teléfono: ${formData.phone}
+• Email: ${formData.email}
+
+*Método de Entrega:*
+${deliveryDetail}
+
+*Forma de Pago:*
+• Transferencia Bancaria / Efectivo
+
+*Detalle de Productos:*
+${productLines}
+
+*Total de Productos:* ${formatCurrency(totalPrice)}
+${shippingCostText}${notesSection}
+
+Quedo atento para coordinar los detalles de entrega y los datos de pago. ¡Muchas gracias!`;
+
+    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(messageText)}`;
+
+    setWhatsappLink(whatsappUrl);
     clearCart();
     setOrderCompleted(true);
-
-    // Redirigir a WhatsApp
-    window.open(whatsappUrl, "_blank");
+    window.location.href = whatsappUrl;
   };
 
   const handleMercadoPagoSubmit = async () => {
     if (!validateForm()) return;
 
+    if (isMercadoPagoDisabled) {
+      alert(
+        "Mercado Pago no está disponible para entregas a coordinar fuera de Cipolletti.",
+      );
+      return;
+    }
+
+    setMpError(null);
     setIsProcessing(true);
 
-    // Handler preparado para conectar con la API de preferencias de Mercado Pago
-    console.log("Conectando con pasarela de Mercado Pago para el pedido:", {
-      payer: {
-        name: formData.fullName,
-        phone: formData.phone,
-        email: formData.email,
-        address: formData.address,
-        city: formData.city,
-      },
-      items: items.map((i) => ({
-        id: i.product.id,
-        title: i.product.title,
-        quantity: i.quantity,
-        unit_price: i.product.price,
-      })),
-      total: totalPrice,
-      deliveryMethod: formData.deliveryMethod,
-      notes: formData.notes,
-    });
+    try {
+      const res = await fetch("/api/checkout/mercadopago", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          items: items.map((item) => ({
+            id: item.product.id,
+            title: item.product.title,
+            quantity: item.quantity,
+            unit_price: item.product.price,
+          })),
+          payer: {
+            fullName: formData.fullName,
+            phone: formData.phone,
+            email: formData.email,
+          },
+          deliveryMethod: formData.deliveryMethod,
+          shippingDetails: {
+            address: formData.address,
+            city: formData.city,
+          },
+          notes: formData.notes,
+        }),
+      });
 
-    setIsProcessing(false);
-    setMpModalOpen(true);
+      const data = await res.json();
+
+      if (!res.ok || !data.init_point) {
+        throw new Error(
+          data.error ||
+            "No se pudo iniciar el proceso de pago con Mercado Pago.",
+        );
+      }
+
+      // Redirigir a Mercado Pago Checkout Pro
+      window.location.href = data.init_point;
+    } catch (err: any) {
+      console.error("Error al procesar pago con Mercado Pago:", err);
+      setMpError(
+        err.message ||
+          "Ocurrió un problema al conectar con Mercado Pago. Podés confirmar tu pedido por WhatsApp mientras tanto.",
+      );
+      setIsProcessing(false);
+    }
   };
 
   // Evitar desajuste de hidratación antes del montaje de Zustand
@@ -270,9 +333,21 @@ export default function CheckoutPage() {
           </div>
 
           <div className="flex flex-col gap-3 pt-2">
+            {whatsappLink && (
+              <a
+                href={whatsappLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3.5 px-4 rounded-xl font-bold text-sm bg-[#25D366] hover:bg-[#20ba59] text-white shadow-[0_0_20px_rgba(37,211,102,0.35)] hover:shadow-[0_0_25px_rgba(37,211,102,0.5)] flex items-center justify-center gap-2.5 transition-all active:scale-[0.98]"
+              >
+                <MessageCircle className="w-5 h-5 fill-current" />
+                <span>Abrir conversación en WhatsApp</span>
+              </a>
+            )}
+
             <Link
               href="/catalogo"
-              className="w-full py-3.5 px-4 rounded-xl font-bold text-sm bg-[#00A8FF] hover:bg-[#38bdf8] text-[#0B0E14] shadow-[0_0_20px_rgba(0,168,255,0.3)] transition-all"
+              className="w-full py-3 px-4 rounded-xl font-semibold text-xs bg-[#0B0E14] hover:bg-[#1a2332] text-slate-300 hover:text-white border border-slate-800 transition-colors"
             >
               Volver al Catálogo
             </Link>
@@ -716,42 +791,66 @@ export default function CheckoutPage() {
                   </div>
                 </button>
 
-                {/* Opción Mercado Pago */}
+                {/* Opción Mercado Pago (con restricción y recargo) */}
                 <button
                   type="button"
-                  onClick={() => handleChange("paymentMethod", "mercadopago")}
+                  disabled={isMercadoPagoDisabled}
+                  onClick={() => {
+                    if (!isMercadoPagoDisabled) {
+                      handleChange("paymentMethod", "mercadopago");
+                    }
+                  }}
                   className={`p-4 rounded-xl border text-left flex flex-col justify-between transition-all ${
-                    formData.paymentMethod === "mercadopago"
-                      ? "bg-[#00A8FF]/10 border-[#00A8FF] shadow-[0_0_15px_rgba(0,168,255,0.15)]"
-                      : "bg-[#0B0E14] border-slate-800 hover:border-slate-700 text-slate-400"
+                    isMercadoPagoDisabled
+                      ? "opacity-50 cursor-not-allowed pointer-events-none bg-slate-900/30 border-slate-800 text-slate-500"
+                      : formData.paymentMethod === "mercadopago"
+                        ? "bg-[#00A8FF]/10 border-[#00A8FF] shadow-[0_0_15px_rgba(0,168,255,0.15)]"
+                        : "bg-[#0B0E14] border-slate-800 hover:border-slate-700 text-slate-400"
                   }`}
                 >
                   <div className="flex items-center justify-between w-full mb-2">
                     <Wallet
                       className={`w-5 h-5 ${
-                        formData.paymentMethod === "mercadopago"
-                          ? "text-[#00A8FF]"
-                          : "text-slate-400"
+                        isMercadoPagoDisabled
+                          ? "text-slate-600"
+                          : formData.paymentMethod === "mercadopago"
+                            ? "text-[#00A8FF]"
+                            : "text-slate-400"
                       }`}
                     />
                     <div
                       className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                        formData.paymentMethod === "mercadopago"
+                        formData.paymentMethod === "mercadopago" &&
+                        !isMercadoPagoDisabled
                           ? "border-[#00A8FF] bg-[#00A8FF]"
                           : "border-slate-700"
                       }`}
                     >
-                      {formData.paymentMethod === "mercadopago" && (
-                        <div className="w-1.5 h-1.5 rounded-full bg-[#0B0E14]" />
-                      )}
+                      {formData.paymentMethod === "mercadopago" &&
+                        !isMercadoPagoDisabled && (
+                          <div className="w-1.5 h-1.5 rounded-full bg-[#0B0E14]" />
+                        )}
                     </div>
                   </div>
-                  <div>
-                    <span className="font-bold text-sm text-white block">
-                      Mercado Pago
-                    </span>
-                    <span className="text-xs text-slate-400">
-                      Tarjetas de débito/crédito y saldo en cuenta
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-bold text-sm text-white block">
+                        Mercado Pago
+                      </span>
+                      {isMercadoPagoDisabled ? (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                          No disponible fuera de Cipolletti
+                        </span>
+                      ) : (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                          +10% por costo de servicio/pasarela
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs text-slate-400 block">
+                      {isMercadoPagoDisabled
+                        ? "Solo disponible para envíos o retiro en Cipolletti"
+                        : "Tarjetas de débito/crédito y saldo en cuenta"}
                     </span>
                   </div>
                 </button>
@@ -847,13 +946,34 @@ export default function CheckoutPage() {
                   </span>
                 </div>
 
+                {/* Recargo Mercado Pago (10%) */}
+                {formData.paymentMethod === "mercadopago" && (
+                  <div className="flex items-center justify-between text-amber-300 font-medium animate-in fade-in duration-200">
+                    <span>Recargo Mercado Pago (10%)</span>
+                    <span>+{formatCurrency(surchargeAmount)}</span>
+                  </div>
+                )}
+
                 <div className="flex items-baseline justify-between pt-3 border-t border-slate-800/80 text-base">
                   <span className="font-bold text-white">Total a pagar</span>
                   <span className="text-2xl font-black text-white tracking-tight">
-                    {formatCurrency(totalPrice)}
+                    {formatCurrency(finalTotal)}
                   </span>
                 </div>
               </div>
+
+              {/* Mensaje de error visual si falla Mercado Pago */}
+              {mpError && (
+                <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-400 flex items-start gap-2 animate-in fade-in duration-200">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <span className="font-bold block">
+                      Error al procesar pago
+                    </span>
+                    <span>{mpError}</span>
+                  </div>
+                </div>
+              )}
 
               {/* Botón de Acción Principal */}
               <div>
@@ -870,14 +990,14 @@ export default function CheckoutPage() {
                   <button
                     type="button"
                     onClick={handleMercadoPagoSubmit}
-                    disabled={isProcessing}
-                    className="w-full py-4 px-4 rounded-xl font-bold text-sm bg-[#00A8FF] hover:bg-[#38bdf8] text-[#0B0E14] shadow-[0_0_25px_rgba(0,168,255,0.3)] hover:shadow-[0_0_30px_rgba(0,168,255,0.5)] flex items-center justify-center gap-2.5 transition-all active:scale-[0.98] disabled:opacity-60"
+                    disabled={isProcessing || isMercadoPagoDisabled}
+                    className="w-full py-4 px-4 rounded-xl font-bold text-sm bg-[#00A8FF] hover:bg-[#38bdf8] text-[#0B0E14] shadow-[0_0_25px_rgba(0,168,255,0.3)] hover:shadow-[0_0_30px_rgba(0,168,255,0.5)] flex items-center justify-center gap-2.5 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Wallet className="w-5 h-5" />
                     <span>
                       {isProcessing
-                        ? "Procesando..."
-                        : "Pagar con Mercado Pago"}
+                        ? "Conectando con Mercado Pago..."
+                        : `Pagar ${formatCurrency(finalTotal)} con Mercado Pago`}
                     </span>
                   </button>
                 )}
@@ -891,75 +1011,6 @@ export default function CheckoutPage() {
           </div>
         </div>
       </div>
-
-      {/* Modal de preparación para Mercado Pago */}
-      {mpModalOpen && (
-        <div
-          className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200"
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="max-w-md w-full bg-[#131923] border border-slate-800 rounded-3xl p-6 sm:p-8 text-center space-y-6 shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="w-16 h-16 rounded-2xl bg-[#00A8FF]/10 border border-[#00A8FF]/20 flex items-center justify-center mx-auto text-[#00A8FF] shadow-[0_0_25px_rgba(0,168,255,0.15)]">
-              <Wallet className="w-8 h-8" />
-            </div>
-
-            <div className="space-y-2">
-              <h3 className="text-xl font-bold text-white">
-                Pasarela Mercado Pago Preparada
-              </h3>
-              <p className="text-sm text-slate-400 leading-relaxed">
-                Los datos del pedido han sido validados correctamente. La
-                integración con Checkout Pro de Mercado Pago se encuentra lista
-                para conectar tu Access Token.
-              </p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-[#0B0E14] border border-slate-800 text-left text-xs space-y-1.5 text-slate-300">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Monto:</span>
-                <span className="font-bold text-white">
-                  {formatCurrency(totalPrice)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Comprador:</span>
-                <span className="font-bold text-slate-200">
-                  {formData.fullName}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Destino:</span>
-                <span className="font-bold text-[#00A8FF]">
-                  {getDeliverySummaryLabel()}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setMpModalOpen(false);
-                  handleTransferSubmit();
-                }}
-                className="w-full py-3 px-4 rounded-xl font-bold text-xs bg-[#25D366] hover:bg-[#20ba59] text-white flex items-center justify-center gap-2 transition-colors"
-              >
-                <MessageCircle className="w-4 h-4 fill-current" />
-                <span>Continuar por WhatsApp mientras tanto</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setMpModalOpen(false)}
-                className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-colors"
-              >
-                Cerrar ventana
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
