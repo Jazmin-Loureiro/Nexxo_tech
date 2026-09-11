@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     const supabase = await createSupabaseServerClient();
     const { data: dbProducts, error: dbError } = await supabase
       .from("products")
-      .select("id, title, price, stock, is_active")
+      .select("id, title, description, price, image_url, stock, is_active")
       .in("id", productIds);
 
     if (dbError || !dbProducts) {
@@ -109,35 +109,37 @@ export async function POST(request: NextRequest) {
     const client = new MercadoPagoConfig({ accessToken });
     const preference = new Preference(client);
 
-    // 6. Construir ítems de preferencia utilizando estrictamente los precios oficiales de Supabase
+    // 6. Construir ítems de preferencia mapeando productos reales con recargo del 10% e imagen
     const preferenceItems = items.map((item: any) => {
       const id = String(item.id || item.product?.id || "");
       const dbProduct = dbProductMap.get(id)!;
       const quantity = Number(item.quantity) || 1;
+      const basePrice = Number(dbProduct.price);
+      const unit_price_with_markup = Math.round(basePrice * 1.1);
+      const imageUrl = dbProduct.image_url || item.image_url;
+      const description = dbProduct.description || item.description;
 
       return {
-        id: dbProduct.id,
-        title: dbProduct.title,
+        id: String(dbProduct.id),
+        title: dbProduct.title || item.title || "Accesorio Nexxo Tech",
         quantity,
-        unit_price: Number(dbProduct.price),
+        unit_price: Number(unit_price_with_markup),
         currency_id: "ARS",
+        picture_url: imageUrl ? String(imageUrl) : undefined,
+        description: description
+          ? String(description).slice(0, 250)
+          : undefined,
       };
     });
 
-    // 7. Calcular recargo del 10% sobre el subtotal oficial de productos
-    const subtotal = preferenceItems.reduce(
-      (acc: number, item: any) => acc + item.unit_price * item.quantity,
-      0,
-    );
+    // 7. Mantener intacto el cálculo del subtotal base y del 10% de recargo para metadatos
+    const subtotal = items.reduce((acc: number, item: any) => {
+      const id = String(item.id || item.product?.id || "");
+      const dbProduct = dbProductMap.get(id)!;
+      const quantity = Number(item.quantity) || 1;
+      return acc + Number(dbProduct.price) * quantity;
+    }, 0);
     const surchargeAmount = Math.round(subtotal * 0.1);
-
-    const surchargeItem = {
-      id: "surcharge-10",
-      title: "Costo por gestión de plataforma y pasarela (10%)",
-      quantity: 1,
-      unit_price: surchargeAmount,
-      currency_id: "ARS",
-    };
 
     // 8. Determinar origen para URLs de retorno de forma segura
     const origin =
@@ -154,7 +156,7 @@ export async function POST(request: NextRequest) {
     // 9. Crear la Preference en Mercado Pago SDK v2
     const response = await preference.create({
       body: {
-        items: [...preferenceItems, surchargeItem],
+        items: preferenceItems,
         payer: {
           name: payer?.fullName?.trim() || "Cliente Nexxo Tech",
           email: payer?.email?.trim() || "lloureiro202@gmail.com",
@@ -165,6 +167,7 @@ export async function POST(request: NextRequest) {
           failure: `${origin}/checkout?status=failure`,
           pending: `${origin}/checkout?status=pending`,
         },
+        statement_descriptor: "NEXXO TECH",
         ...(isHttps ? { auto_return: "approved" } : {}),
         metadata: {
           full_name: payer?.fullName || payer?.name || "",

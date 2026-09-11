@@ -231,7 +231,7 @@ export default function CheckoutPage() {
 ${deliveryDetail}
 
 *Forma de Pago:*
-• Transferencia Bancaria / Efectivo
+• Transferencia Bancaria / Efectivo (Coordinar pago)
 
 *Detalle de Productos:*
 ${productLines}
@@ -918,15 +918,71 @@ Quedo atento para coordinar los detalles de entrega y los datos de pago. ¡Mucha
                 </button>
               </div>
 
+              {formData.paymentMethod === "transfer" && (
+                <div className="mt-3 space-y-3 animate-in fade-in duration-200">
+                  {/* Tarjeta informativa de coordinación y titularidad */}
+                  <div className="p-4 rounded-xl bg-[#0B0E14] border border-slate-800 space-y-2.5 shadow-inner text-xs">
+                    <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
+                      <div className="flex items-center gap-2 font-bold text-white">
+                        <MessageCircle className="w-4 h-4 text-[#25D366]" />
+                        <span>Coordinación y Pago por WhatsApp</span>
+                      </div>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#25D366]/10 text-[#25D366] border border-[#25D366]/20 font-semibold">
+                        Paso Siguiente
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5 text-slate-300 leading-relaxed text-[11px] sm:text-xs">
+                      <p>
+                        Al confirmar tu pedido, se abrirá WhatsApp para
+                        coordinar el retiro o despacho.
+                      </p>
+                      <p className="text-white">
+                        Cuenta bancaria a nombre de:{" "}
+                        <span className="font-bold text-[#00A8FF]">
+                          Lucas Loureiro (Titular oficial de Nexxo Tech)
+                        </span>
+                        .
+                      </p>
+                      <p className="text-slate-400">
+                        Los datos de Alias y CBU te llegarán directamente en el
+                        chat para transferir.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Aviso de reserva de stock conservado */}
+                  <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300 flex items-start gap-2">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                    <span>
+                      El stock de los productos no se reserva hasta confirmar la
+                      acreditación del pago o transferencia.
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {formData.paymentMethod === "mercadopago" &&
                 !isMercadoPagoDisabled && (
-                  <div className="mt-3 p-3 rounded-xl bg-[#0B0E14] border border-slate-800/80 text-[11px] text-slate-400 flex items-start gap-2 animate-in fade-in duration-200">
-                    <span className="text-[#00A8FF] shrink-0 font-bold">ℹ</span>
-                    <span>
-                      Nota: Al completar el pago, volverás automáticamente a la
-                      web para enviar el comprobante y coordinar la entrega o
-                      retiro por WhatsApp.
-                    </span>
+                  <div className="mt-3 p-3.5 rounded-xl bg-[#0B0E14] border border-slate-800/80 text-[11px] text-slate-300 space-y-1.5 animate-in fade-in duration-200">
+                    <div className="flex items-start gap-2">
+                      <span className="text-[#00A8FF] shrink-0 font-bold text-sm leading-none mt-0.5">
+                        ℹ
+                      </span>
+                      <div className="space-y-1">
+                        <p className="text-slate-200">
+                          En la pasarela de pago, el cobro figurará a nombre de{" "}
+                          <strong className="text-white font-semibold">
+                            Lucas Loureiro (Titular oficial de Nexxo Tech)
+                          </strong>
+                          .
+                        </p>
+                        <p className="text-slate-400">
+                          Al completar el pago, volverás automáticamente a la
+                          web para coordinar tu entrega por WhatsApp.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
             </div>
