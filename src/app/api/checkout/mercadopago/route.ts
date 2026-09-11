@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
         items: [...preferenceItems, surchargeItem],
         payer: {
           name: payer?.fullName?.trim() || "Cliente Nexxo Tech",
-          email: payer?.email?.trim() || "cliente@nexxotech.com",
+          email: payer?.email?.trim() || "lloureiro202@gmail.com",
           phone: payerPhone,
         },
         back_urls: {
