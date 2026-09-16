@@ -136,7 +136,7 @@ export default function ProductDetailView({ product }: ProductDetailViewProps) {
             className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-[#00A8FF] transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>← Volver al catálogo</span>
+            <span>Volver al catálogo</span>
           </Link>
         </div>
 
