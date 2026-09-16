@@ -18,7 +18,9 @@ export default function Navbar() {
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [isCartOpen, setIsCartOpen] = useState(false);
+  const isCartOpen = useCartStore((state) => state.isCartOpen);
+  const openCart = useCartStore((state) => state.openCart);
+  const closeCart = useCartStore((state) => state.closeCart);
   const totalItems = useCartStore((state) => state.getTotalItems());
 
   useEffect(() => {
@@ -92,7 +94,7 @@ export default function Navbar() {
               {/* Botón interactivo del Carrito que abre el Drawer */}
               <button
                 type="button"
-                onClick={() => setIsCartOpen(true)}
+                onClick={openCart}
                 aria-label="Abrir carrito de compras"
                 className="relative flex items-center justify-center w-11 h-11 rounded-xl bg-[#131923] border border-slate-800 text-slate-200 hover:text-white hover:border-[#00A8FF]/60 hover:bg-[#1a2332] transition-all duration-200 shadow-sm group"
               >
@@ -156,7 +158,7 @@ export default function Navbar() {
       </div>
 
       {/* Cart Drawer Lateral */}
-      <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+      <CartDrawer isOpen={isCartOpen} onClose={closeCart} />
     </>
   );
 }

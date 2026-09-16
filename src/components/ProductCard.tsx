@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { ShoppingCart, Smartphone, AlertCircle } from "lucide-react";
 import { Product } from "@/types/database";
 import { useCartStore } from "@/store/cartStore";
@@ -39,7 +40,10 @@ export default function ProductCard({ product }: ProductCardProps) {
   return (
     <article className="group flex flex-col bg-[#131923] border border-slate-800 hover:border-[#00A8FF]/40 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-[0_0_25px_rgba(0,168,255,0.12)]">
       {/* Contenedor de Imagen con Fallback Tech */}
-      <div className="relative w-full aspect-square bg-[#0B0E14] overflow-hidden border-b border-slate-800/80">
+      <Link
+        href={`/producto/${product.id}`}
+        className="relative w-full aspect-square bg-[#0B0E14] overflow-hidden border-b border-slate-800/80 block cursor-pointer"
+      >
         {product.image_url && !hasImageError ? (
           <Image
             src={product.image_url}
@@ -91,14 +95,16 @@ export default function ProductCard({ product }: ProductCardProps) {
             </span>
           </div>
         )}
-      </div>
+      </Link>
 
       {/* Información del Producto */}
       <div className="p-5 flex flex-col flex-1 justify-between gap-4">
         <div className="space-y-2">
-          <h3 className="text-base sm:text-lg font-bold text-slate-100 group-hover:text-[#00A8FF] transition-colors line-clamp-1">
-            {product.title}
-          </h3>
+          <Link href={`/producto/${product.id}`} className="block group/title">
+            <h3 className="text-base sm:text-lg font-bold text-slate-100 group-hover/title:text-[#00A8FF] transition-colors line-clamp-1">
+              {product.title}
+            </h3>
+          </Link>
           <p className="text-sm text-slate-400 line-clamp-2 min-h-[2.5rem] leading-relaxed">
             {product.description ||
               "Accesorio de alta calidad garantizada para tu dispositivo."}
