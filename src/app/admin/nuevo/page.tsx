@@ -17,6 +17,7 @@ export default function NewProductPage() {
     stock: number;
     description: string | null;
     image_url: string | null;
+    images: string[];
     is_active: boolean;
   }) => {
     const supabase = createClient();
@@ -44,6 +45,7 @@ export default function NewProductPage() {
         stock: productData.stock,
         description: productData.description,
         image_url: productData.image_url,
+        images: productData.images,
         is_active: productData.is_active,
       },
     ]);

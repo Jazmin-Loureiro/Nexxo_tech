@@ -41,7 +41,7 @@ export default function ProductCard({ product }: ProductCardProps) {
     <article className="group flex flex-col bg-[#131923] border border-slate-800 hover:border-[#00A8FF]/40 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-[0_0_25px_rgba(0,168,255,0.12)]">
       {/* Contenedor de Imagen con Fallback Tech */}
       <Link
-        href={`/producto/${product.id}`}
+        href={`/producto/${product.slug || product.id}`}
         className="relative w-full aspect-square bg-[#0B0E14] overflow-hidden border-b border-slate-800/80 block cursor-pointer"
       >
         {product.image_url && !hasImageError ? (
@@ -100,7 +100,10 @@ export default function ProductCard({ product }: ProductCardProps) {
       {/* Información del Producto */}
       <div className="p-5 flex flex-col flex-1 justify-between gap-4">
         <div className="space-y-2">
-          <Link href={`/producto/${product.id}`} className="block group/title">
+          <Link
+            href={`/producto/${product.slug || product.id}`}
+            className="block group/title"
+          >
             <h3 className="text-base sm:text-lg font-bold text-slate-100 group-hover/title:text-[#00A8FF] transition-colors line-clamp-1">
               {product.title}
             </h3>

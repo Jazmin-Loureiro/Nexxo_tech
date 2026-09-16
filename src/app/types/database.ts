@@ -1,10 +1,11 @@
 export interface Product {
   id: string;
   title: string;
-  slug: string;
+  slug?: string | null;
   description: string | null;
   price: number;
   image_url: string | null;
+  images?: string[] | null;
   stock: number;
   is_active: boolean;
   category?: string;

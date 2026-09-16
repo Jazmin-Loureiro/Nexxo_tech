@@ -30,6 +30,7 @@ interface ProductFormProps {
     stock: number;
     description: string | null;
     image_url: string | null;
+    images: string[];
     is_active: boolean;
   }) => Promise<void>;
   submitButtonText: string;
@@ -76,9 +77,28 @@ export default function ProductForm({
   const [description, setDescription] = useState(
     initialData?.description || "",
   );
-  const [imageUrl, setImageUrl] = useState<string | null>(
-    initialData?.image_url || null,
-  );
+  const [images, setImages] = useState<string[]>(() => {
+    const list: string[] = [];
+    if (Array.isArray(initialData?.images) && initialData.images.length > 0) {
+      initialData.images.forEach((img) => {
+        if (typeof img === "string" && img.trim()) list.push(img.trim());
+      });
+    }
+    if (
+      list.length === 0 &&
+      initialData?.image_url &&
+      initialData.image_url.trim()
+    ) {
+      list.push(initialData.image_url.trim());
+    }
+    if (
+      initialData?.image_url &&
+      !list.includes(initialData.image_url.trim())
+    ) {
+      list.unshift(initialData.image_url.trim());
+    }
+    return list.slice(0, 4);
+  });
   const [isActive, setIsActive] = useState<boolean>(
     initialData?.is_active ?? true,
   );
@@ -88,25 +108,32 @@ export default function ProductForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Manejo de carga de archivos a Supabase Storage bucket 'product-images'
+  // Manejo de carga de archivos a Supabase Storage bucket 'product-images' (hasta 4 fotos)
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    // Validación de extensiones permitidas
-    const validTypes = ["image/jpeg", "image/png", "image/webp"];
-    if (!validTypes.includes(file.type)) {
-      setImageError("Formato no válido. Usá JPG, PNG o WEBP.");
+    const remainingSlots = 4 - images.length;
+    if (remainingSlots <= 0) {
+      setImageError("Ya alcanzaste el límite máximo de 4 fotos.");
+      e.target.value = "";
       return;
+    }
+
+    const filesToUpload = files.slice(0, remainingSlots);
+    const validTypes = ["image/jpeg", "image/png", "image/webp"];
+
+    for (const file of filesToUpload) {
+      if (!validTypes.includes(file.type)) {
+        setImageError("Formato no válido. Usá JPG, PNG o WEBP.");
+        e.target.value = "";
+        return;
+      }
     }
 
     try {
       setIsUploadingImage(true);
       setImageError(null);
-
-      // Nombre único y sanitizado: ${Date.now()}-${file.name.replace(/\s+/g, '_')}
-      const sanitizedName = file.name.replace(/\s+/g, "_");
-      const fileName = `${Date.now()}-${sanitizedName}`;
 
       const supabase = createClient();
 
@@ -123,23 +150,31 @@ export default function ProductForm({
         return;
       }
 
-      const { error: uploadError } = await supabase.storage
-        .from("product-images")
-        .upload(fileName, file, {
-          cacheControl: "3600",
-          upsert: false,
-        });
+      const uploadedUrls: string[] = [];
 
-      if (uploadError) {
-        throw new Error(uploadError.message);
+      for (const file of filesToUpload) {
+        const sanitizedName = file.name.replace(/\s+/g, "_");
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}-${sanitizedName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("product-images")
+          .upload(fileName, file, {
+            cacheControl: "3600",
+            upsert: false,
+          });
+
+        if (uploadError) {
+          throw new Error(uploadError.message);
+        }
+
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("product-images").getPublicUrl(fileName);
+
+        uploadedUrls.push(publicUrl);
       }
 
-      // Obtener URL pública desde el bucket
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("product-images").getPublicUrl(fileName);
-
-      setImageUrl(publicUrl);
+      setImages((prev) => [...prev, ...uploadedUrls].slice(0, 4));
     } catch (err: any) {
       console.error("Error al subir imagen a Supabase Storage:", err);
       setImageError(
@@ -147,12 +182,22 @@ export default function ProductForm({
       );
     } finally {
       setIsUploadingImage(false);
+      e.target.value = "";
     }
   };
 
-  const handleRemoveImage = () => {
-    setImageUrl(null);
+  const handleRemoveImage = (indexToRemove: number) => {
+    setImages((prev) => prev.filter((_, idx) => idx !== indexToRemove));
     setImageError(null);
+  };
+
+  const handleSetAsCover = (index: number) => {
+    if (index === 0) return;
+    setImages((prev) => {
+      const copy = [...prev];
+      const [item] = copy.splice(index, 1);
+      return [item, ...copy];
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -182,8 +227,9 @@ export default function ProductForm({
         ? customCategory.trim() || "Varios"
         : category.trim();
 
-    // Generar slug manteniendo o creando
-    const finalSlug = initialData?.slug || generateSlug(title);
+    // Generar slug amigable automáticamente a partir del título
+    const finalSlug = generateSlug(title) || initialData?.slug || "producto";
+    const coverImageUrl = images.length > 0 ? images[0] : null;
 
     try {
       setIsSubmitting(true);
@@ -194,7 +240,8 @@ export default function ProductForm({
         price: parsedPrice,
         stock: parsedStock,
         description: description.trim() || null,
-        image_url: imageUrl,
+        image_url: coverImageUrl,
+        images: images,
         is_active: isActive,
       });
     } catch (err: any) {
@@ -345,49 +392,84 @@ export default function ProductForm({
 
         {/* Columna Derecha: Imagen y Estado */}
         <div className="space-y-6">
-          {/* Carga de Imagen con Supabase Storage */}
+          {/* Carga de Galería de Fotos (hasta 4 fotos) */}
           <div className="p-6 rounded-2xl bg-[#131923] border border-slate-800 space-y-4">
-            <h2 className="text-base font-bold text-white flex items-center gap-2 border-b border-slate-800/80 pb-3">
-              <ImageIcon className="w-4 h-4 text-[#00A8FF]" />
-              Imagen del Producto
-            </h2>
-
-            {/* Previsualización */}
-            <div className="relative w-full aspect-square rounded-xl bg-[#0B0E14] border border-slate-800 overflow-hidden flex items-center justify-center group">
-              {imageUrl ? (
-                <>
-                  <Image
-                    src={imageUrl}
-                    alt="Vista previa del producto"
-                    fill
-                    sizes="(max-width: 768px) 100vw, 300px"
-                    className="object-cover"
-                  />
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleRemoveImage}
-                      className="p-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white transition-colors cursor-pointer"
-                      title="Eliminar imagen"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </>
-              ) : isUploadingImage ? (
-                <div className="flex flex-col items-center gap-2 text-slate-400">
-                  <Loader2 className="w-8 h-8 animate-spin text-[#00A8FF]" />
-                  <span className="text-xs font-medium">
-                    Subiendo a storage...
-                  </span>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-2 text-slate-500 p-4 text-center">
-                  <UploadCloud className="w-10 h-10 text-slate-600" />
-                  <span className="text-xs">Sin imagen seleccionada</span>
-                </div>
-              )}
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-[#00A8FF]" />
+                <span>Fotos del Producto</span>
+              </h2>
+              <span className="text-xs font-mono font-semibold text-slate-400 bg-[#0B0E14] px-2.5 py-0.5 rounded-full border border-slate-800">
+                {images.length}/4
+              </span>
             </div>
+
+            {/* Grid de Fotos cargadas */}
+            {images.length > 0 ? (
+              <div className="grid grid-cols-2 gap-3">
+                {images.map((imgUrl, idx) => (
+                  <div
+                    key={imgUrl + idx}
+                    className="relative aspect-square rounded-xl bg-[#0B0E14] border border-slate-800 overflow-hidden group shadow-sm"
+                  >
+                    <Image
+                      src={imgUrl}
+                      alt={`Foto ${idx + 1}`}
+                      fill
+                      sizes="180px"
+                      className="object-cover"
+                    />
+
+                    {/* Badge de Portada o Botón para hacer portada */}
+                    {idx === 0 ? (
+                      <div className="absolute top-2 left-2 z-10">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#00A8FF] text-[#0B0E14] shadow-md">
+                          Portada
+                        </span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleSetAsCover(idx)}
+                        className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-md text-[10px] font-medium bg-black/75 text-slate-300 hover:text-white border border-slate-700/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                        title="Hacer foto principal"
+                      >
+                        Hacer portada
+                      </button>
+                    )}
+
+                    {/* Botón individual para eliminar foto */}
+                    <div className="absolute top-2 right-2 z-10">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveImage(idx)}
+                        className="p-1.5 rounded-lg bg-red-500/85 hover:bg-red-600 text-white shadow-md transition-all cursor-pointer"
+                        title="Quitar esta foto"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : isUploadingImage ? (
+              <div className="w-full aspect-video rounded-xl bg-[#0B0E14] border border-slate-800 flex flex-col items-center justify-center gap-2 text-slate-400">
+                <Loader2 className="w-8 h-8 animate-spin text-[#00A8FF]" />
+                <span className="text-xs font-medium">
+                  Subiendo imágenes...
+                </span>
+              </div>
+            ) : (
+              <div className="w-full aspect-video rounded-xl bg-[#0B0E14] border border-slate-800 border-dashed flex flex-col items-center justify-center p-6 text-center text-slate-500">
+                <UploadCloud className="w-8 h-8 text-slate-600 mb-2" />
+                <span className="text-xs font-semibold text-slate-400">
+                  Sin imágenes cargadas
+                </span>
+                <span className="text-[11px] text-slate-500 mt-0.5">
+                  Podés subir hasta 4 imágenes (JPG, PNG o WEBP).
+                </span>
+              </div>
+            )}
 
             {/* Error de imagen */}
             {imageError && (
@@ -397,23 +479,36 @@ export default function ProductForm({
               </p>
             )}
 
-            {/* Input para seleccionar archivo local */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-2">
-                Subir archivo local (JPG, PNG, WEBP)
-              </label>
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                disabled={isUploadingImage}
-                onChange={handleFileChange}
-                className="w-full text-xs text-slate-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#00A8FF]/10 file:text-[#00A8FF] hover:file:bg-[#00A8FF]/20 file:cursor-pointer cursor-pointer"
-              />
-              <p className="text-[11px] text-slate-500 mt-1.5">
-                Se almacena automáticamente en el bucket público{" "}
-                <code className="text-slate-400">product-images</code>.
+            {/* Input para seleccionar fotos locales (hasta 4) */}
+            {images.length < 4 ? (
+              <div className="space-y-1.5 pt-1">
+                <label className="block text-xs font-semibold text-slate-300">
+                  {images.length === 0
+                    ? "Subir fotos (máx. 4)"
+                    : `Agregar más fotos (${4 - images.length} lugar${4 - images.length === 1 ? "" : "es"} disponible${4 - images.length === 1 ? "" : "s"})`}
+                </label>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/jpeg,image/png,image/webp"
+                  disabled={isUploadingImage}
+                  onChange={handleFileChange}
+                  className="w-full text-xs text-slate-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#00A8FF]/10 file:text-[#00A8FF] hover:file:bg-[#00A8FF]/20 file:cursor-pointer cursor-pointer disabled:opacity-50"
+                />
+                <p className="text-[11px] text-slate-500">
+                  La foto marcada como <strong>Portada</strong> será la imagen
+                  principal del catálogo y detalle.
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-emerald-400/90 font-medium flex items-center gap-1.5 pt-1">
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                <span>
+                  Límite de 4 fotos alcanzado. Eliminá alguna si querés
+                  reemplazarla.
+                </span>
               </p>
-            </div>
+            )}
           </div>
 
           {/* Visibilidad / Estado */}

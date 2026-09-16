@@ -18,6 +18,8 @@ import {
   CreditCard,
   ChevronDown,
   ChevronUp,
+  Calendar,
+  X,
 } from "lucide-react";
 
 interface OrderData {
@@ -66,6 +68,11 @@ export default function AdminOrdersPage() {
     "todos" | "pending" | "paid" | "delivered"
   >("todos");
   const [searchQuery, setSearchQuery] = useState("");
+  const [datePreset, setDatePreset] = useState<
+    "all" | "today" | "7days" | "month" | "custom"
+  >("all");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(
     null,
   );
@@ -193,7 +200,7 @@ export default function AdminOrdersPage() {
     }
   };
 
-  // Filtrar pedidos por estado y búsqueda
+  // Filtrar pedidos por estado, fecha y búsqueda
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
       // Filtro de estado
@@ -208,6 +215,46 @@ export default function AdminOrdersPage() {
       if (statusFilter === "delivered" && order.status !== "delivered")
         return false;
 
+      // Filtro de fecha
+      if (datePreset !== "all") {
+        const orderDate = new Date(order.created_at);
+        if (isNaN(orderDate.getTime())) return false;
+        const now = new Date();
+
+        if (datePreset === "today") {
+          const isToday =
+            orderDate.getFullYear() === now.getFullYear() &&
+            orderDate.getMonth() === now.getMonth() &&
+            orderDate.getDate() === now.getDate();
+          if (!isToday) return false;
+        } else if (datePreset === "7days") {
+          const sevenDaysAgo = new Date(
+            now.getTime() - 7 * 24 * 60 * 60 * 1000,
+          );
+          if (orderDate < sevenDaysAgo) return false;
+        } else if (datePreset === "month") {
+          const startOfMonth = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            1,
+            0,
+            0,
+            0,
+            0,
+          );
+          if (orderDate < startOfMonth) return false;
+        } else if (datePreset === "custom") {
+          if (startDate) {
+            const start = new Date(`${startDate}T00:00:00`);
+            if (orderDate < start) return false;
+          }
+          if (endDate) {
+            const end = new Date(`${endDate}T23:59:59.999`);
+            if (orderDate > end) return false;
+          }
+        }
+      }
+
       // Filtro de búsqueda
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase().trim();
@@ -219,7 +266,15 @@ export default function AdminOrdersPage() {
         order.id?.toLowerCase().includes(q)
       );
     });
-  }, [orders, statusFilter, searchQuery]);
+  }, [orders, statusFilter, searchQuery, datePreset, startDate, endDate]);
+
+  // Suma total de los pedidos filtrados
+  const filteredTotalAmount = useMemo(() => {
+    return filteredOrders.reduce(
+      (sum, o) => sum + (Number(o.total_amount) || 0),
+      0,
+    );
+  }, [filteredOrders]);
 
   return (
     <div className="space-y-6">
@@ -252,45 +307,189 @@ export default function AdminOrdersPage() {
         </button>
       </div>
 
-      {/* Barra de Filtros y Búsqueda */}
-      <div className="p-4 rounded-2xl bg-[#131923] border border-slate-800 flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center">
-        {/* Pestañas de Estado */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
-          {[
-            { id: "todos", label: "Todos" },
-            { id: "pending", label: "Pendientes" },
-            { id: "paid", label: "Pagados" },
-            { id: "delivered", label: "Entregados" },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setStatusFilter(tab.id as any)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                statusFilter === tab.id
-                  ? "bg-[#00A8FF] text-[#0B0E14] shadow-[0_0_15px_rgba(0,168,255,0.25)]"
-                  : "bg-[#0B0E14] text-slate-400 hover:text-white border border-slate-800 hover:border-slate-700"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+      {/* Barra de Filtros, Fechas y Búsqueda */}
+      <div className="p-4 rounded-2xl bg-[#131923] border border-slate-800 space-y-4">
+        {/* Fila 1: Pestañas de Estado y Buscador */}
+        <div className="flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center">
+          {/* Pestañas de Estado */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+            {[
+              { id: "todos", label: "Todos" },
+              { id: "pending", label: "Pendientes" },
+              { id: "paid", label: "Pagados" },
+              { id: "delivered", label: "Entregados" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setStatusFilter(tab.id as any)}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  statusFilter === tab.id
+                    ? "bg-[#00A8FF] text-[#0B0E14] shadow-[0_0_15px_rgba(0,168,255,0.25)]"
+                    : "bg-[#0B0E14] text-slate-400 hover:text-white border border-slate-800 hover:border-slate-700"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Buscador */}
+          <div className="relative w-full md:w-72">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+              <Search className="w-4 h-4" />
+            </div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar por cliente o teléfono..."
+              className="w-full pl-10 pr-4 py-2 rounded-xl bg-[#0B0E14] border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-[#00A8FF] text-xs transition-colors"
+            />
+          </div>
         </div>
 
-        {/* Buscador */}
-        <div className="relative w-full md:w-72">
-          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-            <Search className="w-4 h-4" />
+        {/* Fila 2: Filtros de Fecha */}
+        <div className="pt-3 border-t border-slate-800/80 flex flex-col lg:flex-row gap-3 lg:items-center justify-between">
+          {/* Presets de Fecha */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex items-center gap-1 text-slate-400 text-xs mr-1">
+              <Calendar className="w-3.5 h-3.5 text-[#00A8FF]" />
+              <span className="font-semibold text-slate-300">Fecha:</span>
+            </div>
+            {[
+              { id: "all", label: "Todos" },
+              { id: "today", label: "Hoy" },
+              { id: "7days", label: "Últimos 7 días" },
+              { id: "month", label: "Este mes" },
+            ].map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => {
+                  setDatePreset(preset.id as any);
+                  setStartDate("");
+                  setEndDate("");
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                  datePreset === preset.id
+                    ? "bg-[#00A8FF] text-[#0B0E14] shadow-[0_0_12px_rgba(0,168,255,0.25)] font-bold"
+                    : "bg-[#0B0E14] text-slate-400 hover:text-white border border-slate-800 hover:border-slate-700"
+                }`}
+              >
+                {preset.label}
+              </button>
+            ))}
           </div>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar por cliente o teléfono..."
-            className="w-full pl-10 pr-4 py-2 rounded-xl bg-[#0B0E14] border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-[#00A8FF] text-xs transition-colors"
-          />
+
+          {/* Rango Personalizado de Fechas (Desde / Hasta) y Limpiar */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <label
+                htmlFor="startDateInput"
+                className="text-xs text-slate-400 font-medium"
+              >
+                Desde:
+              </label>
+              <input
+                id="startDateInput"
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setDatePreset("custom");
+                }}
+                className={`px-2.5 py-1.5 rounded-xl bg-[#0B0E14] border text-slate-200 text-xs focus:outline-none focus:border-[#00A8FF] transition-colors [color-scheme:dark] ${
+                  datePreset === "custom" && startDate
+                    ? "border-[#00A8FF]/60"
+                    : "border-slate-800"
+                }`}
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <label
+                htmlFor="endDateInput"
+                className="text-xs text-slate-400 font-medium"
+              >
+                Hasta:
+              </label>
+              <input
+                id="endDateInput"
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setDatePreset("custom");
+                }}
+                className={`px-2.5 py-1.5 rounded-xl bg-[#0B0E14] border text-slate-200 text-xs focus:outline-none focus:border-[#00A8FF] transition-colors [color-scheme:dark] ${
+                  datePreset === "custom" && endDate
+                    ? "border-[#00A8FF]/60"
+                    : "border-slate-800"
+                }`}
+              />
+            </div>
+
+            {(datePreset !== "all" || startDate !== "" || endDate !== "") && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDatePreset("all");
+                  setStartDate("");
+                  setEndDate("");
+                }}
+                className="px-2.5 py-1.5 rounded-xl bg-[#0B0E14] hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white text-xs transition-colors flex items-center gap-1 cursor-pointer"
+                title="Limpiar filtros de fecha"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Limpiar</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Resumen Métrico */}
+      {!isLoading && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1 text-xs text-slate-400">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span>
+              Mostrando{" "}
+              <strong className="text-white font-semibold">
+                {filteredOrders.length}
+              </strong>{" "}
+              {filteredOrders.length === 1 ? "pedido" : "pedidos"}
+            </span>
+            <span className="text-slate-600">•</span>
+            <span>
+              Total:{" "}
+              <strong className="text-[#00A8FF] font-bold font-mono">
+                {formatCurrency(filteredTotalAmount)} ARS
+              </strong>
+            </span>
+          </div>
+
+          {(statusFilter !== "todos" ||
+            searchQuery.trim() !== "" ||
+            datePreset !== "all" ||
+            startDate !== "" ||
+            endDate !== "") && (
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter("todos");
+                setSearchQuery("");
+                setDatePreset("all");
+                setStartDate("");
+                setEndDate("");
+              }}
+              className="text-slate-400 hover:text-white transition-colors text-[11px] underline underline-offset-2 self-start sm:self-auto cursor-pointer"
+            >
+              Restablecer todos los filtros
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Listado de Pedidos */}
       {isLoading ? (
@@ -307,7 +506,11 @@ export default function AdminOrdersPage() {
             No se encontraron pedidos
           </h3>
           <p className="text-xs text-slate-400 max-w-sm mx-auto">
-            {searchQuery || statusFilter !== "todos"
+            {searchQuery ||
+            statusFilter !== "todos" ||
+            datePreset !== "all" ||
+            startDate !== "" ||
+            endDate !== ""
               ? "No hay órdenes que coincidan con los filtros seleccionados."
               : "Aún no se han registrado pedidos en la tienda."}
           </p>

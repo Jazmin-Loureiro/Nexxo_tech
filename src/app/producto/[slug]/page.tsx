@@ -5,19 +5,24 @@ import { Product } from "@/types/database";
 import ProductDetailView from "./ProductDetailView";
 
 interface PageProps {
-  params: Promise<{ id: string }>;
+  params: Promise<{ slug: string }>;
 }
 
 export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
-  const { id } = await params;
+  const { slug } = await params;
+  const isUUID = /^[0-9a-fA-F-]{36}$/.test(slug);
   const supabase = await createClient();
-  const { data: product } = await supabase
-    .from("products")
-    .select("*")
-    .eq("id", id)
-    .single();
+
+  let query = supabase.from("products").select("*");
+  if (isUUID) {
+    query = query.eq("id", slug);
+  } else {
+    query = query.eq("slug", slug);
+  }
+
+  const { data: product } = await query.maybeSingle();
 
   if (!product || product.is_active === false) {
     return {
@@ -60,13 +65,18 @@ export async function generateMetadata({
 }
 
 export default async function ProductDetailPage({ params }: PageProps) {
-  const { id } = await params;
+  const { slug } = await params;
+  const isUUID = /^[0-9a-fA-F-]{36}$/.test(slug);
   const supabase = await createClient();
-  const { data: product, error } = await supabase
-    .from("products")
-    .select("*")
-    .eq("id", id)
-    .single();
+
+  let query = supabase.from("products").select("*");
+  if (isUUID) {
+    query = query.eq("id", slug);
+  } else {
+    query = query.eq("slug", slug);
+  }
+
+  const { data: product, error } = await query.maybeSingle();
 
   if (error || !product || product.is_active === false) {
     notFound();

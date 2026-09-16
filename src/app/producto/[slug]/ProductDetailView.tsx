@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -28,6 +28,38 @@ export default function ProductDetailView({ product }: ProductDetailViewProps) {
   const [hasImageError, setHasImageError] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [isAdded, setIsAdded] = useState(false);
+
+  // Galería de imágenes (hasta 4 fotos)
+  const galleryImages = useMemo(() => {
+    const list: string[] = [];
+    if (Array.isArray(product.images) && product.images.length > 0) {
+      product.images.forEach((img) => {
+        if (typeof img === "string" && img.trim()) list.push(img.trim());
+      });
+    }
+    if (list.length === 0 && product.image_url && product.image_url.trim()) {
+      list.push(product.image_url.trim());
+    }
+    if (
+      product.image_url &&
+      product.image_url.trim() &&
+      !list.includes(product.image_url.trim())
+    ) {
+      list.unshift(product.image_url.trim());
+    }
+    return list;
+  }, [product.images, product.image_url]);
+
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+
+  // Reiniciar estado si cambia de producto
+  useEffect(() => {
+    setSelectedImageIndex(0);
+    setHasImageError(false);
+  }, [product.id]);
+
+  const currentImage =
+    galleryImages[selectedImageIndex] || galleryImages[0] || product.image_url;
 
   const items = useCartStore((state) => state.items);
   const addItem = useCartStore((state) => state.addItem);
@@ -110,7 +142,7 @@ export default function ProductDetailView({ product }: ProductDetailViewProps) {
 
         {/* Layout en 2 columnas */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
-          {/* Columna Izquierda: Imagen Principal (7 columnas) */}
+          {/* Columna Izquierda: Imagen Principal y Galería (7 columnas) */}
           <div className="lg:col-span-7 space-y-4">
             <div className="relative w-full aspect-square sm:aspect-[4/3] lg:aspect-square bg-[#131923] border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
               {/* Badge de Envío Gratis */}
@@ -121,15 +153,17 @@ export default function ProductDetailView({ product }: ProductDetailViewProps) {
                 </span>
               </div>
 
-              {/* Imagen o Fallback */}
-              {product.image_url && !hasImageError ? (
+              {/* Imagen Principal o Fallback */}
+              {currentImage && !hasImageError ? (
                 <Image
-                  src={product.image_url}
+                  key={currentImage}
+                  src={currentImage}
                   alt={product.title}
                   fill
                   priority
+                  loading="eager"
                   sizes="(max-width: 1024px) 100vw, 55vw"
-                  className="object-cover"
+                  className="object-cover transition-opacity duration-200"
                   onError={() => setHasImageError(true)}
                 />
               ) : (
@@ -146,6 +180,39 @@ export default function ProductDetailView({ product }: ProductDetailViewProps) {
                 </div>
               )}
             </div>
+
+            {/* Fila de Miniaturas (si tiene más de 1 imagen) */}
+            {galleryImages.length > 1 && (
+              <div className="flex items-center gap-3 overflow-x-auto pb-1 pt-1">
+                {galleryImages.map((imgUrl, index) => {
+                  const isSelected = index === selectedImageIndex;
+                  return (
+                    <button
+                      key={imgUrl + index}
+                      type="button"
+                      onClick={() => {
+                        setSelectedImageIndex(index);
+                        setHasImageError(false);
+                      }}
+                      className={`relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden bg-[#131923] border-2 transition-all cursor-pointer shrink-0 ${
+                        isSelected
+                          ? "border-[#00A8FF] shadow-[0_0_15px_rgba(0,168,255,0.35)] scale-105"
+                          : "border-slate-800 hover:border-slate-700 opacity-70 hover:opacity-100"
+                      }`}
+                      title={`Ver foto ${index + 1}`}
+                    >
+                      <Image
+                        src={imgUrl}
+                        alt={`${product.title} miniatura ${index + 1}`}
+                        fill
+                        sizes="96px"
+                        className="object-cover"
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Columna Derecha: Información y Compra (5 columnas) */}
